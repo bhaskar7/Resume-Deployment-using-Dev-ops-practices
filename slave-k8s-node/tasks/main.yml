@@ -1,0 +1,54 @@
+---
+# tasks file for slave-k8s-node
+
+- name: Creating K8s Repo
+  yum_repository:
+      name: Kubernets
+      description: K8s
+      file: external_repos
+      baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+      gpgcheck: yes
+      gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+      enabled: yes
+
+- name: Install Kubeadm, Docker, Kubelet, kubectl
+  package:
+     name:
+         - kubelet
+         - kubectl
+         - kubeadm
+         - docker
+         - iproute-tc
+           
+- name: Change Docker Driver
+  copy:
+     src: daemon.json
+     dest: /etc/docker/
+
+- name: start Kubelete services
+  service:
+     name: "kubelet"
+     state: started
+     enabled: yes
+
+- name: start Docker services
+  service:
+     name: "docker"
+     state: started
+     enabled: yes
+
+- name: Pulling kubeadm image
+  command: kubeadm config images pull
+
+- name: set bridge 0 to 1
+  command: echo "1" >  /proc/sys/net/bridge/bridge-nf-call-iptables
+
+- name: iptable-update
+  copy:
+     dest: /etc/sysctl.d/k8s.conf
+     content: |
+         net.bridge.bridge-nf-call-ip6tables = 1
+         net.bridge.bridge-nf-call-iptables = 1
+
+- name: system restart
+  shell: "sysctl --system"
