@@ -1,0 +1,54 @@
+# Roles for master and slave
+
+- hosts: tag_name_master
+  roles:
+     - master-k8s-node
+
+- hosts: tag_name_slave
+  roles:
+     - slave-k8s-node
+
+
+# Create token in master and pass the taken into slave
+
+- hosts: tag_name_master
+  tasks:
+  - name: run join cmd in master
+    shell: "kubeadm token create --print-join-command"
+    register: join_cmd_output
+
+  - set_fact:
+      shared_variable: "{{ join_cmd_output.stdout }}"
+
+  - add_host:
+      name: "joint_register"
+      shared_variable: "{{ shared_variable }}"
+
+- hosts: tag_name_slave
+  vars:
+    join_slave: "{{ hostvars['joint_register']['shared_variable'] }}"
+  tasks:
+  - name: Joining slave to master node
+    shell: "{{ join_slave }}"
+
+
+- hosts: tag_name_master
+  tasks:
+     - name: Apply flannel
+       shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+ 
+
+     - name: Launch the Deployment
+       shell: kubectl create deployment myresume --image=bhaskar07/resume-app:v1
+
+     - name: expose the Deployment
+       shell: kubectl expose deployment myresume --type=LoadBalancer --port=80 --target-port=80 --name=resume-svc
+       
+     - name: service ip
+       shell: kubectl get svc
+       register: ip
+
+     - name: host ip
+       debug:
+         var: ip
+
